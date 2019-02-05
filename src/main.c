@@ -70,7 +70,7 @@ void enableRawMode() {
 
 }
 
-int editorReadKey(){
+int editorReadKey() {
 			int nread;
 			char c;
 				while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
@@ -79,8 +79,8 @@ int editorReadKey(){
 			if (c == '\x1b') {
 				char seq[3];
 
-			if (read(STDIN_FILENO, &seq[0], 1) != 1) return 'x1b';
-			if (read(STDIN_FILENO, &seq[1], 1) != 1) return 'x1b';
+			if (read(STDIN_FILENO, &seq[0], 1) != 1) return '\x1b';
+			if (read(STDIN_FILENO, &seq[1], 1) != 1) return '\x1b';
 
 			if (seq[0] == '[') {
 				switch (seq[1]) {
@@ -107,15 +107,15 @@ void editorDrawRows(struct abuf *ab) {
 						if (welcomelen > E.screencols) welcomelen = E.screencols;
 						int padding = (E.screencols - welcomelen) /2;
 						if (padding) {
-							adAppend(ab, "~", 1);
+							abAppend(ab, "~", 1);
 							padding--;
 						}
-						while (padding--) adAppend(ab, " ", 1);
-						adAppend(ab, welcome, welcomelen);
+						while (padding--) abAppend(ab, " ", 1);
+						abAppend(ab, welcome, welcomelen);
 	} else {
-			adAppend(ab, "~", 1);
+			abAppend(ab, "~", 1);
 	}
-			adAppend(ab, "\x1b[k", 3);
+			abAppend(ab, "\x1b[k", 3);
 				if (y < E.screenrows -1) {
 					adAppend(ab, "\r\n", 2);
 		}
