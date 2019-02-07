@@ -10,12 +10,18 @@
 
 
  /*** includes ***/
+
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
+#define _GNU_SOURCE
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <termios.h>
 
@@ -29,22 +35,32 @@ enum editorKey {
 			ARROW_RIGHT,
 			ARROW_UP,
 			ARROW_DOWN,
+			DEL_KEY,
 			HOME_KEY,
 			END_KEY,
 			PAGE_UP,
-			PAGE_DOWN,
+			PAGE_DOWN
 };
 
 /*** struct ***/
 struct termios orig_termios;
 
+typedef struct erow {
+			int size;
+			char *chars;} erow;
+
 struct editorConfig {
 			int cx, cy;
 			int screenrows;
 			int screencols;
+			int numrows;
+			erow *row;
+			// struct termios orig_termios; compile error..
 };
 
 struct editorConfig E;
+
+/*** Termianl ***/
 
 void die(const char *s) {
 			perror(s);
@@ -92,6 +108,7 @@ int editorReadKey() {
 					if (seq[2] == '~') {
 						switch (seq[1]) {
 							case '1': return HOME_KEY;
+							case '3': return DEL_KEY;
 							case '4': return END_KEY;
 							case '5': return PAGE_UP;
 							case '6': return PAGE_DOWN;
@@ -125,9 +142,10 @@ int editorReadKey() {
 void editorDrawRows(struct abuf *ab) {
 			int y;
 			for(y = 0; y < E.screenrows; y++) {
-				if (y == E.screenrows, y++) {
-					char welcome[80];
-			int welcomelen = snprintf(welcome, sizeof(welcome),
+				if (y >= E.numrows) {
+					if (E.numrows == 0 && E.screencols / 3) {
+						char welcome[80];
+						int welcomelen = snprintf(welcome, sizeof(welcome),
 							"aztec editor -- Version %s", AUZTEC_VERSION);
 						if (welcomelen > E.screencols) welcomelen = E.screencols;
 						int padding = (E.screencols - welcomelen) /2;
@@ -140,13 +158,17 @@ void editorDrawRows(struct abuf *ab) {
 	} else {
 			abAppend(ab, "~", 1);
 	}
-			abAppend(ab, "\x1b[k", 3);
-				if (y < E.screenrows -1) {
-					adAppend(ab, "\r\n", 2);
-		}
+	} else {
+		int len = E.row[y].size;
+		if (len > E.screencols) len = E.screencols;
+		abAppend(ab, E.row[y].chars, len);
 	}
+		abAppend(ab, "\x1b[k", 3);
+		if (y < E.screenrows -1) {
+			adAppend(ab, "\r\n", 2);
+			}
+		}
 }
-
 int getCursorPosition(int *rows, int *cols) {
 			char buf[32];
 			unsigned int i = 0;
@@ -181,6 +203,43 @@ int getWindowSize(int *rows, int *cols){
 				return 0;
 	}
 
+}
+
+/*** ROW oppeations ***/
+
+void editorAppendRow(char *s, size_t len) {
+			E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
+
+			int at = E.numrows;
+			E.row[at].size = len;
+			E.row[at].chars, s, len);
+			memcpy(E.row[at].chars, s, len);
+			E.row[at].chars[len] = '\0';
+			E.numrows++;
+}
+
+/*** file i/o ***/
+
+void editorOpen(char *filename) {
+			FILE *fp = fopen(filename, "r");
+			if (!fp) die("fopen");
+
+			char *line = NULL;
+			size_t linecap = 0;
+			ssize_t linelen;
+			while ((linelen = getline(&line, &linelen, fp)) != -1){
+				while (linelen > 0 && (line[linelen - 1] == '\n' ||
+															 line[linelen - 1] == '\r'))
+					linelen--;
+				editorAppendRow(line, linelen);
+			E.row.size = linelen;
+			E.row.chars = malloc(linelen + 1);
+			memcpy(E.row.chars, line, linelen);
+			E.row.chars[linelen] = '\0';
+			E.numrows = 1;
+}
+			free(line);
+			fclose(fp);
 }
 
 /*** Append Buffer ***/
@@ -260,6 +319,14 @@ void editorProcessKeypress(){
 					exit(0);
 					break;
 
+				case HOME_KEY:
+				E.cx = 0;
+				break;
+
+				case END_KEY:
+				E.cx = E.screencols - 1;
+				break;
+
 				case PAGE_UP:
 				case PAGE_DOWN:
 					{
@@ -281,14 +348,18 @@ void editorProcessKeypress(){
 void initEditor(){
 			E.cx = 0;
 			E.cy = 0;
-
+			E.numrows = 0;
+			E.row = NULL;
 
 			if (getWindowSize(&E.screenrows, &E.screencols) == -1 ) die("getWindowSize");
 }
 
-int main(){
+int main(int argc, char *argv[]){
 			enableRawMode();
 			initEditor();
+			if (argc >= 2){
+				editorOpen(argv[1]);
+			}
 
 			while(1){
 				editorRefreshScreen();
