@@ -1,7 +1,7 @@
 /*
  ============================================================================
  Name        : Main.c
- Author      : Auztec
+ Author      : RoFlush
  Version     : 0.0.0a
  Copyright   : GPLv3
  Description : the main file .
